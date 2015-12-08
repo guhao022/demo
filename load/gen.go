@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"/lib"
+	"demo/load/lib"
 	"time"
 	"ucenter/utils"
 )
@@ -102,6 +102,15 @@ func (gen *myGenerator) handleStopSign() {
 	gen.cancelSign = 1
 	utils.CLog("[INFO] 取消结果通道...")
 	close(gen.resultCh)
+}
+
+func (gen *myGenerator) asyncCall() {
+	gen.tickets.Take()
+	go func() {
+
+		rawReq := gen.caller.BuildReq()
+		gen.tickets.Return()
+	}()
 }
 
 func (gen *myGenerator) Start() {
