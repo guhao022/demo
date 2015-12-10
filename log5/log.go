@@ -2,11 +2,11 @@ package log5
 
 import (
 	"fmt"
+	"log"
+	"path"
 	"runtime"
 	"strings"
 	"sync"
-	"log"
-	"path"
 )
 
 func init() {
@@ -17,15 +17,11 @@ type Level uint
 
 const (
 	Trace Level = iota + 1
-	Debug
 	Info
 	Warning
 	Error
 	Fatal
-
-	Success Level = iota
 )
-
 
 // log输出接口
 type LogEngine interface {
@@ -36,12 +32,12 @@ type LogEngine interface {
 
 // log结构体
 type Log struct {
-	level     Level
-	msg       chan *logMsg
+	level         Level
+	msg           chan *logMsg
 	trackFuncCall bool //是否追踪调用函数
 	funcCallDepth int
-	output    map[string]LogEngine
-	lock      sync.Mutex
+	output        map[string]LogEngine
+	lock          sync.Mutex
 }
 
 // log内容
@@ -71,11 +67,11 @@ func Register(name string, log engineType) {
 // chanlen -- 缓存大小
 func NewLog(engine string, chanlen uint64) (*Log, error) {
 	l := &Log{
-		level:     Trace,
+		level:         Trace,
 		trackFuncCall: false,
 		funcCallDepth: 2,
-		msg:       make(chan *logMsg, chanlen),
-		output:    make(map[string]LogEngine),
+		msg:           make(chan *logMsg, chanlen),
+		output:        make(map[string]LogEngine),
 	}
 
 	err := l.SetEngine(engine)
@@ -136,11 +132,16 @@ func (l *Log) newMsg(level Level, msg string) {
 	l.msg <- lm
 }
 
-// 异步保存log
+// 写入
+func (l *Log) write() {
+	go l.startLog()
+}
+
+/*// 异步保存log
 func (l *Log) Async() *Log {
 	go l.startLog()
 	return l
-}
+}*/
 
 func (l *Log) startLog() {
 	for {
@@ -176,50 +177,53 @@ func (l *Log) getInvokerLocation() string {
 	return fmt.Sprintf("%s : [%s:%d]", funcPath, fname, line)
 }
 
-/*type LogTag map[Level]string
-
-var logtag = LogTag{
-	Info:    "INFO",
-	Error:   "ERROR",
-	Warning: "WARNING",
-	Notice:  "NOTICE",
-	Trac:    "TRAC",
-	Fatal:   "FATAL",
-}*/
-
-// TRACE
-func (l *Log) Trace(format string, v ...interface{}) {
-	msg := fmt.Sprintf("[TRAC] " + format, v...)
-	l.newMsg(Trace, msg)
-}
-
-// TRACE
-func (l *Log) Debug(format string, v ...interface{}) {
-	msg := fmt.Sprintf("[DEBU] " + format, v...)
-	l.newMsg(Debug, msg)
+// Trace
+func (l *Log) Trac(format string, v ...interface{}) {
+	// 如果设置的级别比 trace 级别高,不输出
+	if l.level > Trace {
+		return
+	}
+	msg := fmt.Sprintf("[DEBU] "+format, v...)
+	l.newMsg(Info, msg)
+	l.write()
 }
 
 // INFO
 func (l *Log) Info(format string, v ...interface{}) {
-	msg := fmt.Sprintf("[INFO] " + format, v...)
+	if l.level > Info {
+		return
+	}
+	msg := fmt.Sprintf("[INFO] "+format, v...)
 	l.newMsg(Info, msg)
+	l.write()
 }
 
 //WARNING
 func (l *Log) Warn(format string, v ...interface{}) {
-	msg := fmt.Sprintf("[WARN] " + format, v...)
+	if l.level > Warning {
+		return
+	}
+	msg := fmt.Sprintf("[WARN] "+format, v...)
 	l.newMsg(Warning, msg)
+	l.write()
 }
 
 // ERROR
 func (l *Log) Error(format string, v ...interface{}) {
-	msg := fmt.Sprintf("[ERRO] " + format, v...)
+	if l.level > Error {
+		return
+	}
+	msg := fmt.Sprintf("[ERRO] "+format, v...)
 	l.newMsg(Error, msg)
+	l.write()
 }
 
 // FATAL
 func (l *Log) Fatal(format string, v ...interface{}) {
-	msg := fmt.Sprintf("[FATA] " + format, v...)
+	if l.level > Fatal {
+		return
+	}
+	msg := fmt.Sprintf("[FATA] "+format, v...)
 	l.newMsg(Info, msg)
+	l.write()
 }
-
